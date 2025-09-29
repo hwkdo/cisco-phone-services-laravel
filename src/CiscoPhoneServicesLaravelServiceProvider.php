@@ -20,6 +20,6 @@ class CiscoPhoneServicesLaravelServiceProvider extends PackageServiceProvider
             ->hasConfigFile();
             #->hasViews()
             #->hasMigration('create_cisco_phone_services_laravel_table')
-            -#>hasCommand(CiscoPhoneServicesLaravelCommand::class);
+            #->hasCommand(CiscoPhoneServicesLaravelCommand::class);
     }
 }
