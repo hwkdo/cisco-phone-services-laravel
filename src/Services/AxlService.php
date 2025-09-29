@@ -6,7 +6,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Hwkdo\CiscoPhoneServicesLaravel\Interfaces\AxlServiceInterface;
 use SoapClient;
 
-class CiscoAxlService implements AxlServiceInterface
+class AxlService implements AxlServiceInterface
 {
     protected $client;
 
