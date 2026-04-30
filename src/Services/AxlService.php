@@ -94,14 +94,40 @@ class AxlService implements AxlServiceInterface
 
     public function setLineForwardAllDestination(string $pattern, string $destination)
     {
+        $line = $this->getLine($pattern);
+        $callingSearchSpaceName = [
+            "_" => $line->callForwardAll->callingSearchSpaceName->_ ?? null,
+            "uuid" => $line->callForwardAll->callingSearchSpaceName->uuid ?? null,
+        ];
+        $isForwardToVoiceMailEnabled = filter_var(
+            $line->callForwardAll->forwardToVoiceMail ?? false,
+            FILTER_VALIDATE_BOOLEAN
+        );
+
+        if ($destination !== '' && $isForwardToVoiceMailEnabled) {
+            $this->client->updateLine([
+                'pattern' => $pattern,
+                'routePartitionName' => config('cisco-phone-services-laravel.axl.partition'),
+                'callForwardAll' => [
+                    'callingSearchSpaceName' => $callingSearchSpaceName,
+                    'destination' => '',
+                    'forwardToVoiceMail' => 'f',
+                ],
+            ]);
+        }
+
         $payload = [
             'pattern' => $pattern,
             'routePartitionName' => config('cisco-phone-services-laravel.axl.partition'),    
             'callForwardAll' => [
-                "callingSearchSpaceName" => $this->getCallingSearchSpaceName($pattern),
+                'callingSearchSpaceName' => $callingSearchSpaceName,
                 'destination' => $destination,
             ]
         ];
+
+        if ($destination !== '') {
+            $payload['callForwardAll']['forwardToVoiceMail'] = 'f';
+        }
 
         $result  = $this->client->updateLine(
             $payload
