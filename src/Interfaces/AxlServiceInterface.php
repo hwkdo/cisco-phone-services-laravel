@@ -32,6 +32,18 @@ interface AxlServiceInterface
 
     public function listPhones(): array;
 
+    /**
+     * @return array<int, array{
+     *     name: string,
+     *     description: string,
+     *     product: string,
+     *     protocol: string,
+     *     device_pool: string,
+     *     lines: array<int, array{index: int, pattern: string, route_partition: string}>
+     * }>
+     */
+    public function listPhonesForUser(string $userId): array;
+
     public function getPhone(string $identifier): object;
 
     public function addPhone(array $phone): mixed;

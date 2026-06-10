@@ -284,16 +284,72 @@ class AxlService implements AxlServiceInterface
 
         $result = $this->client->listPhone($payload);
 
-        return $this->normalizeListResponse($result, 'phone', function ($phone) {
+        $linesByDevice = $this->fetchDeviceLinesMap();
+
+        return $this->normalizeListResponse($result, 'phone', function ($phone) use ($linesByDevice) {
+            $name = $phone->name ?? '';
+
             return [
-                'name' => $phone->name ?? '',
+                'name' => $name,
                 'description' => $phone->description ?? '',
                 'uuid' => AxlValueFormatter::normalizeUuid($phone->uuid ?? ''),
                 'product' => AxlValueFormatter::stringify($phone->product ?? ''),
                 'protocol' => AxlValueFormatter::stringify($phone->protocol ?? ''),
                 'device_pool' => AxlValueFormatter::stringify($phone->devicePoolName ?? ''),
+                'lines' => $linesByDevice[$name] ?? [],
             ];
         });
+    }
+
+    public function listPhonesForUser(string $userId): array
+    {
+        $userResult = $this->client->getUser([
+            'userid' => $userId,
+            'returnedTags' => [
+                'associatedDevices' => [
+                    'device' => '',
+                ],
+            ],
+        ]);
+
+        $associatedDevices = $userResult->return->user->associatedDevices ?? null;
+
+        if ($associatedDevices === null) {
+            return [];
+        }
+
+        $deviceProperty = $associatedDevices->device ?? null;
+
+        if ($deviceProperty === null || $deviceProperty === '') {
+            return [];
+        }
+
+        $deviceNames = is_array($deviceProperty) ? $deviceProperty : [$deviceProperty];
+
+        $phones = [];
+
+        foreach ($deviceNames as $deviceName) {
+            $name = AxlValueFormatter::stringify($deviceName);
+
+            if ($name === '') {
+                continue;
+            }
+
+            try {
+                $phones[] = $this->summarizePhone($name);
+            } catch (\Throwable) {
+                $phones[] = [
+                    'name' => $name,
+                    'description' => '',
+                    'product' => '',
+                    'protocol' => '',
+                    'device_pool' => '',
+                    'lines' => [],
+                ];
+            }
+        }
+
+        return $phones;
     }
 
     public function getPhone(string $identifier): object
@@ -520,9 +576,140 @@ class AxlService implements AxlServiceInterface
     }
 
     /**
-     * @param  callable(object): array<string, mixed>  $mapper
-     * @return array<int, array<string, mixed>>
+     * @return array{
+     *     name: string,
+     *     description: string,
+     *     product: string,
+     *     protocol: string,
+     *     device_pool: string,
+     *     lines: array<int, array{index: int, pattern: string, route_partition: string}>
+     * }
      */
+    private function summarizePhone(string $name): array
+    {
+        $result = $this->client->getPhone([
+            'name' => $name,
+            'returnedTags' => [
+                'name' => '',
+                'description' => '',
+                'product' => '',
+                'protocol' => '',
+                'devicePoolName' => '',
+                'lines' => [
+                    'line' => [
+                        'index' => '',
+                        'dirn' => [
+                            'pattern' => '',
+                            'routePartitionName' => '',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $phone = $result->return->phone;
+
+        return [
+            'name' => AxlValueFormatter::stringify($phone->name ?? $name),
+            'description' => AxlValueFormatter::stringify($phone->description ?? ''),
+            'product' => AxlValueFormatter::stringify($phone->product ?? ''),
+            'protocol' => AxlValueFormatter::stringify($phone->protocol ?? ''),
+            'device_pool' => AxlValueFormatter::stringify($phone->devicePoolName ?? ''),
+            'lines' => $this->extractPhoneLines($phone),
+        ];
+    }
+
+    /**
+     * @return array<string, array<int, array{index: int, pattern: string, route_partition: string}>>
+     */
+    private function fetchDeviceLinesMap(): array
+    {
+        try {
+            $sql = 'select device.name as device_name, numplan.dnorpattern as pattern, '
+                .'routepartition.name as partition_name, devicenumplanmap.numplanindex as line_index '
+                .'from device '
+                .'inner join devicenumplanmap on devicenumplanmap.fkdevice = device.pkid '
+                .'inner join numplan on numplan.pkid = devicenumplanmap.fknumplan '
+                .'left join routepartition on routepartition.pkid = numplan.fkroutepartition';
+
+            $result = $this->executeSql($sql);
+
+            if (! isset($result->row) || empty($result->row)) {
+                return [];
+            }
+
+            $rows = is_array($result->row) ? $result->row : [$result->row];
+            $map = [];
+
+            foreach ($rows as $row) {
+                $deviceName = (string) ($row->device_name ?? '');
+
+                if ($deviceName === '') {
+                    continue;
+                }
+
+                $map[$deviceName][] = [
+                    'index' => (int) ($row->line_index ?? 0),
+                    'pattern' => (string) ($row->pattern ?? ''),
+                    'route_partition' => (string) ($row->partition_name ?? ''),
+                ];
+            }
+
+            foreach ($map as &$lines) {
+                usort($lines, fn (array $a, array $b): int => $a['index'] <=> $b['index']);
+            }
+
+            return $map;
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * @return array<int, array{index: int, pattern: string, route_partition: string}>
+     */
+    private function extractPhoneLines(mixed $phone): array
+    {
+        $linesContainer = $phone->lines ?? null;
+
+        if ($linesContainer === null) {
+            return [];
+        }
+
+        $lineItems = $linesContainer->line ?? null;
+
+        if ($lineItems === null) {
+            return [];
+        }
+
+        $lines = is_array($lineItems) ? $lineItems : [$lineItems];
+        $result = [];
+
+        foreach ($lines as $line) {
+            $dirn = $line->dirn ?? null;
+
+            if ($dirn === null) {
+                continue;
+            }
+
+            $pattern = AxlValueFormatter::stringify($dirn->pattern ?? '');
+
+            if ($pattern === '') {
+                continue;
+            }
+
+            $result[] = [
+                'index' => (int) ($line->index ?? 0),
+                'pattern' => $pattern,
+                'route_partition' => AxlValueFormatter::stringify($dirn->routePartitionName ?? ''),
+            ];
+        }
+
+        usort($result, fn (array $a, array $b): int => $a['index'] <=> $b['index']);
+
+        return $result;
+    }
+
     private function normalizeListResponse(mixed $result, string $property, callable $mapper): array
     {
         if (! isset($result->return->{$property})) {
