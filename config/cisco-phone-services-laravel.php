@@ -11,7 +11,23 @@ return [
         'exceptions' => env('CISCO_AXL_EXCEPTIONS', false),
         'partition' => env('CISCO_AXL_PARTITION', 'PHONES'),
         'pattern' => env('CISCO_AXL_PATTERN', '\+492315493'),
+        'defaults' => [
+            'phone' => [
+                'class' => env('CISCO_AXL_DEFAULT_PHONE_CLASS', 'Phone'),
+                'protocol' => env('CISCO_AXL_DEFAULT_PHONE_PROTOCOL', 'SIP'),
+                'protocol_side' => env('CISCO_AXL_DEFAULT_PHONE_PROTOCOL_SIDE', 'User'),
+                'product' => env('CISCO_AXL_DEFAULT_PHONE_PRODUCT', 'Cisco Unified Client Services Framework'),
+                'common_phone_config' => env('CISCO_AXL_DEFAULT_COMMON_PHONE_CONFIG', 'Standard Common Phone Profile'),
+                'device_pool' => env('CISCO_AXL_DEFAULT_DEVICE_POOL', 'Default'),
+                'location' => env('CISCO_AXL_DEFAULT_LOCATION', 'Hub_None'),
+                'security_profile' => env('CISCO_AXL_DEFAULT_SECURITY_PROFILE', 'Universal Device Template - Model-independent Security Profile'),
+                'sip_profile' => env('CISCO_AXL_DEFAULT_SIP_PROFILE', 'Standard SIP Profile'),
+            ],
+            'line' => [
+                'usage' => env('CISCO_AXL_DEFAULT_LINE_USAGE', 'Device'),
+            ],
         ],
+    ],
     'cupi' => [
         'base_url' => env('CISCO_CUPI_BASE_URL','https://nbg-handor-cuc1.hwkdo.local/vmrest/'),
         'username' => env('CISCO_CUPI_USERNAME',env('CISCO_AXL_USERNAME')),

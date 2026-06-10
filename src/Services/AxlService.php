@@ -2,8 +2,9 @@
 
 namespace Hwkdo\CiscoPhoneServicesLaravel\Services;
 
-use Illuminate\Contracts\Auth\Authenticatable;
 use Hwkdo\CiscoPhoneServicesLaravel\Interfaces\AxlServiceInterface;
+use Hwkdo\CiscoPhoneServicesLaravel\Support\AxlValueFormatter;
+use Illuminate\Contracts\Auth\Authenticatable;
 use SoapClient;
 
 class AxlService implements AxlServiceInterface
@@ -261,7 +262,277 @@ class AxlService implements AxlServiceInterface
         ];
 
         $result = $this->client->getCallPickupGroup($payload);
-        #dd($result);
+
         return $result->return->callPickupGroup;
-    }    
+    }
+
+    public function listPhones(): array
+    {
+        $payload = [
+            'searchCriteria' => [
+                'name' => '%',
+            ],
+            'returnedTags' => [
+                'name' => '',
+                'description' => '',
+                'uuid' => '',
+                'product' => '',
+                'protocol' => '',
+                'devicePoolName' => '',
+            ],
+        ];
+
+        $result = $this->client->listPhone($payload);
+
+        return $this->normalizeListResponse($result, 'phone', function ($phone) {
+            return [
+                'name' => $phone->name ?? '',
+                'description' => $phone->description ?? '',
+                'uuid' => AxlValueFormatter::normalizeUuid($phone->uuid ?? ''),
+                'product' => AxlValueFormatter::stringify($phone->product ?? ''),
+                'protocol' => AxlValueFormatter::stringify($phone->protocol ?? ''),
+                'device_pool' => AxlValueFormatter::stringify($phone->devicePoolName ?? ''),
+            ];
+        });
+    }
+
+    public function getPhone(string $identifier): object
+    {
+        $result = $this->client->getPhone($this->resolveNameOrUuidPayload($identifier));
+
+        return $result->return->phone;
+    }
+
+    public function addPhone(array $phone): mixed
+    {
+        $defaults = config('cisco-phone-services-laravel.axl.defaults.phone', []);
+
+        $payload = array_merge([
+            'class' => $defaults['class'] ?? 'Phone',
+            'protocol' => $defaults['protocol'] ?? 'SIP',
+            'protocolSide' => $defaults['protocol_side'] ?? 'User',
+            'commonPhoneConfigName' => $defaults['common_phone_config'] ?? 'Standard Common Phone Profile',
+            'devicePoolName' => $defaults['device_pool'] ?? 'Default',
+            'locationName' => $defaults['location'] ?? 'Hub_None',
+            'securityProfileName' => $defaults['security_profile'] ?? 'Universal Device Template - Model-independent Security Profile',
+            'sipProfileName' => $defaults['sip_profile'] ?? 'Standard SIP Profile',
+            'product' => $defaults['product'] ?? 'Cisco Unified Client Services Framework',
+        ], $phone);
+
+        $result = $this->client->addPhone([
+            'phone' => $payload,
+        ]);
+
+        return $result->return;
+    }
+
+    public function updatePhone(string $identifier, array $phone): mixed
+    {
+        $payload = array_merge($this->resolveNameOrUuidPayload($identifier), $phone);
+
+        $result = $this->client->updatePhone($payload);
+
+        return $result->return;
+    }
+
+    public function removePhone(string $identifier): mixed
+    {
+        $result = $this->client->removePhone($this->resolveNameOrUuidPayload($identifier));
+
+        return $result->return;
+    }
+
+    public function applyPhone(string $name): mixed
+    {
+        $result = $this->client->applyPhone([
+            'name' => $name,
+        ]);
+
+        return $result->return;
+    }
+
+    public function listLines(): array
+    {
+        $payload = [
+            'searchCriteria' => [
+                'pattern' => '%',
+                'routePartitionName' => $this->partitionName(),
+            ],
+            'returnedTags' => [
+                'pattern' => '',
+                'description' => '',
+                'alertingName' => '',
+                'uuid' => '',
+                'usage' => '',
+                'routePartitionName' => '',
+            ],
+        ];
+
+        $result = $this->client->listLine($payload);
+
+        return $this->normalizeListResponse($result, 'line', function ($line) {
+            return [
+                'pattern' => $line->pattern ?? '',
+                'description' => $line->description ?? '',
+                'alerting_name' => AxlValueFormatter::stringify($line->alertingName ?? ''),
+                'uuid' => AxlValueFormatter::normalizeUuid($line->uuid ?? ''),
+                'usage' => AxlValueFormatter::stringify($line->usage ?? ''),
+                'route_partition' => AxlValueFormatter::stringify($line->routePartitionName ?? ''),
+            ];
+        });
+    }
+
+    public function addLine(array $line): mixed
+    {
+        $defaults = config('cisco-phone-services-laravel.axl.defaults.line', []);
+
+        $payload = array_merge([
+            'usage' => $defaults['usage'] ?? 'Device',
+            'routePartitionName' => $this->partitionName(),
+        ], $line);
+
+        $result = $this->client->addLine([
+            'line' => $payload,
+        ]);
+
+        return $result->return;
+    }
+
+    public function updateLineByPattern(string $pattern, array $line): mixed
+    {
+        $payload = array_merge([
+            'pattern' => $pattern,
+            'routePartitionName' => $this->partitionName(),
+        ], $line);
+
+        $result = $this->client->updateLine($payload);
+
+        return $result->return;
+    }
+
+    public function removeLine(string $pattern): mixed
+    {
+        $result = $this->client->removeLine([
+            'pattern' => $pattern,
+            'routePartitionName' => $this->partitionName(),
+        ]);
+
+        return $result->return;
+    }
+
+    public function listUsers(?string $search = null): array
+    {
+        $payload = [
+            'searchCriteria' => [
+                'userid' => $search !== null && $search !== '' ? '%'.$search.'%' : '%',
+            ],
+            'returnedTags' => [
+                'userid' => '',
+                'firstName' => '',
+                'lastName' => '',
+                'mailid' => '',
+                'department' => '',
+                'uuid' => '',
+            ],
+        ];
+
+        $result = $this->client->listUser($payload);
+
+        return $this->normalizeListResponse($result, 'user', function ($user) {
+            return [
+                'userid' => $user->userid ?? '',
+                'first_name' => $user->firstName ?? '',
+                'last_name' => $user->lastName ?? '',
+                'mailid' => $user->mailid ?? '',
+                'department' => $user->department ?? '',
+                'uuid' => AxlValueFormatter::normalizeUuid($user->uuid ?? ''),
+            ];
+        });
+    }
+
+    public function getUser(string $identifier): object
+    {
+        $result = $this->client->getUser($this->resolveUserIdentifierPayload($identifier));
+
+        return $result->return->user;
+    }
+
+    public function addUser(array $user): mixed
+    {
+        $result = $this->client->addUser([
+            'user' => $user,
+        ]);
+
+        return $result->return;
+    }
+
+    public function updateUser(string $identifier, array $user): mixed
+    {
+        $payload = array_merge($this->resolveUserIdentifierPayload($identifier), $user);
+
+        $result = $this->client->updateUser($payload);
+
+        return $result->return;
+    }
+
+    public function removeUser(string $identifier): mixed
+    {
+        $result = $this->client->removeUser($this->resolveUserIdentifierPayload($identifier));
+
+        return $result->return;
+    }
+
+    private function partitionName(): string
+    {
+        return (string) config('cisco-phone-services-laravel.axl.partition', 'PHONES');
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function resolveNameOrUuidPayload(string $identifier): array
+    {
+        if (AxlValueFormatter::isUuid($identifier)) {
+            return [
+                'uuid' => AxlValueFormatter::formatUuidForAxl($identifier),
+            ];
+        }
+
+        return [
+            'name' => $identifier,
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function resolveUserIdentifierPayload(string $identifier): array
+    {
+        if (AxlValueFormatter::isUuid($identifier)) {
+            return [
+                'uuid' => AxlValueFormatter::formatUuidForAxl($identifier),
+            ];
+        }
+
+        return [
+            'userid' => $identifier,
+        ];
+    }
+
+    /**
+     * @param  callable(object): array<string, mixed>  $mapper
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeListResponse(mixed $result, string $property, callable $mapper): array
+    {
+        if (! isset($result->return->{$property})) {
+            return [];
+        }
+
+        $items = is_array($result->return->{$property})
+            ? $result->return->{$property}
+            : [$result->return->{$property}];
+
+        return array_values(array_map($mapper, $items));
+    }
 }
