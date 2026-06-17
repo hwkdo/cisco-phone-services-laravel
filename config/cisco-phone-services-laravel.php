@@ -25,6 +25,16 @@ return [
             ],
             'line' => [
                 'usage' => env('CISCO_AXL_DEFAULT_LINE_USAGE', 'Device'),
+                'calling_permission_labels' => [
+                    // 'CSS_NAME' => 'Anzeigename',
+                ],
+            ],
+            'hunt_list' => [
+                'call_manager_group' => env('CISCO_AXL_DEFAULT_CALL_MANAGER_GROUP', 'Default'),
+            ],
+            'line_group' => [
+                'distribution_algorithm' => env('CISCO_AXL_DEFAULT_LINE_GROUP_DISTRIBUTION', 'Longest Idle Time'),
+                'rna_reversion_timeout' => (int) env('CISCO_AXL_DEFAULT_LINE_GROUP_RNA_TIMEOUT', 10),
             ],
         ],
     ],

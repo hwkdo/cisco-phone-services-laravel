@@ -4,6 +4,7 @@ namespace Hwkdo\CiscoPhoneServicesLaravel\Services;
 
 use Hwkdo\CiscoPhoneServicesLaravel\Interfaces\AxlServiceInterface;
 use Hwkdo\CiscoPhoneServicesLaravel\Support\AxlValueFormatter;
+use Hwkdo\CiscoPhoneServicesLaravel\Support\LineCallingPermissionFormatter;
 use Illuminate\Contracts\Auth\Authenticatable;
 use SoapClient;
 
@@ -421,12 +422,15 @@ class AxlService implements AxlServiceInterface
                 'uuid' => '',
                 'usage' => '',
                 'routePartitionName' => '',
+                'shareLineAppearanceCssName' => '',
             ],
         ];
 
         $result = $this->client->listLine($payload);
 
         return $this->normalizeListResponse($result, 'line', function ($line) {
+            $callingSearchSpace = AxlValueFormatter::stringify($line->shareLineAppearanceCssName ?? '');
+
             return [
                 'pattern' => $line->pattern ?? '',
                 'description' => $line->description ?? '',
@@ -434,6 +438,8 @@ class AxlService implements AxlServiceInterface
                 'uuid' => AxlValueFormatter::normalizeUuid($line->uuid ?? ''),
                 'usage' => AxlValueFormatter::stringify($line->usage ?? ''),
                 'route_partition' => AxlValueFormatter::stringify($line->routePartitionName ?? ''),
+                'calling_search_space' => $callingSearchSpace,
+                'calling_permission' => LineCallingPermissionFormatter::label($callingSearchSpace),
             ];
         });
     }
@@ -474,6 +480,31 @@ class AxlService implements AxlServiceInterface
         ]);
 
         return $result->return;
+    }
+
+    public function listCallingSearchSpaces(): array
+    {
+        $payload = [
+            'searchCriteria' => [
+                'name' => '%',
+            ],
+            'returnedTags' => [
+                'name' => '',
+                'description' => '',
+            ],
+        ];
+
+        $result = $this->client->listCss($payload);
+
+        return $this->normalizeListResponse($result, 'css', function ($css) {
+            $name = AxlValueFormatter::stringify($css->name ?? '');
+
+            return [
+                'name' => $name,
+                'description' => AxlValueFormatter::stringify($css->description ?? ''),
+                'label' => LineCallingPermissionFormatter::label($name),
+            ];
+        });
     }
 
     public function listUsers(?string $search = null): array
@@ -534,6 +565,348 @@ class AxlService implements AxlServiceInterface
     public function removeUser(string $identifier): mixed
     {
         $result = $this->client->removeUser($this->resolveUserIdentifierPayload($identifier));
+
+        return $result->return;
+    }
+
+    public function listHuntPilots(): array
+    {
+        $payload = [
+            'searchCriteria' => [
+                'pattern' => '%',
+                'routePartitionName' => $this->partitionName(),
+            ],
+            'returnedTags' => [
+                'pattern' => '',
+                'description' => '',
+                'alertingName' => '',
+                'uuid' => '',
+                'huntListName' => '',
+                'routePartitionName' => '',
+            ],
+        ];
+
+        $result = $this->client->listHuntPilot($payload);
+
+        return $this->normalizeListResponse($result, 'huntPilot', function ($huntPilot) {
+            return [
+                'pattern' => $huntPilot->pattern ?? '',
+                'description' => $huntPilot->description ?? '',
+                'alerting_name' => AxlValueFormatter::stringify($huntPilot->alertingName ?? ''),
+                'uuid' => AxlValueFormatter::normalizeUuid($huntPilot->uuid ?? ''),
+                'hunt_list_name' => AxlValueFormatter::stringify($huntPilot->huntListName ?? ''),
+                'route_partition' => AxlValueFormatter::stringify($huntPilot->routePartitionName ?? ''),
+            ];
+        });
+    }
+
+    public function getHuntPilot(string $identifier): object
+    {
+        $payload = array_merge($this->resolveHuntPilotIdentifierPayload($identifier), [
+            'returnedTags' => [
+                'pattern' => '',
+                'description' => '',
+                'alertingName' => '',
+                'uuid' => '',
+                'huntListName' => '',
+                'routePartitionName' => '',
+            ],
+        ]);
+
+        $result = $this->client->getHuntPilot($payload);
+
+        return $result->return->huntPilot;
+    }
+
+    public function addHuntPilot(array $huntPilot): mixed
+    {
+        $payload = array_merge([
+            'blockEnable' => 'f',
+            'useCallingPartyPhoneMask' => 'Default',
+            'routePartitionName' => $this->partitionName(),
+        ], $huntPilot);
+
+        $result = $this->client->addHuntPilot([
+            'huntPilot' => $payload,
+        ]);
+
+        return $result->return;
+    }
+
+    public function updateHuntPilotByPattern(string $pattern, array $huntPilot): mixed
+    {
+        $payload = array_merge([
+            'pattern' => $pattern,
+            'routePartitionName' => $this->partitionName(),
+        ], $huntPilot);
+
+        $result = $this->client->updateHuntPilot($payload);
+
+        return $result->return;
+    }
+
+    public function removeHuntPilot(string $pattern): mixed
+    {
+        $result = $this->client->removeHuntPilot([
+            'pattern' => $pattern,
+            'routePartitionName' => $this->partitionName(),
+        ]);
+
+        return $result->return;
+    }
+
+    public function listHuntLists(): array
+    {
+        $payload = [
+            'searchCriteria' => [
+                'name' => '%',
+            ],
+            'returnedTags' => [
+                'name' => '',
+                'description' => '',
+                'uuid' => '',
+                'callManagerGroupName' => '',
+                'routeListEnabled' => '',
+                'voiceMailUsage' => '',
+            ],
+        ];
+
+        $result = $this->client->listHuntList($payload);
+
+        return $this->normalizeListResponse($result, 'huntList', function ($huntList) {
+            return [
+                'name' => $huntList->name ?? '',
+                'description' => $huntList->description ?? '',
+                'uuid' => AxlValueFormatter::normalizeUuid($huntList->uuid ?? ''),
+                'call_manager_group' => AxlValueFormatter::stringify($huntList->callManagerGroupName ?? ''),
+                'route_list_enabled' => filter_var($huntList->routeListEnabled ?? false, FILTER_VALIDATE_BOOLEAN),
+                'voice_mail_usage' => filter_var($huntList->voiceMailUsage ?? false, FILTER_VALIDATE_BOOLEAN),
+            ];
+        });
+    }
+
+    public function getHuntList(string $identifier): object
+    {
+        $payload = array_merge($this->resolveNameOrUuidPayload($identifier), [
+            'returnedTags' => [
+                'name' => '',
+                'description' => '',
+                'uuid' => '',
+                'callManagerGroupName' => '',
+                'routeListEnabled' => '',
+                'voiceMailUsage' => '',
+                'members' => [
+                    'member' => [
+                        'lineGroupName' => '',
+                        'selectionOrder' => '',
+                        'uuid' => '',
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = $this->client->getHuntList($payload);
+
+        return $result->return->huntList;
+    }
+
+    public function getHuntListMembers(string $identifier): array
+    {
+        $huntList = $this->getHuntList($identifier);
+
+        return $this->extractHuntListMembers($huntList);
+    }
+
+    public function addHuntList(array $huntList): mixed
+    {
+        $defaults = config('cisco-phone-services-laravel.axl.defaults.hunt_list', []);
+
+        $payload = array_merge([
+            'callManagerGroupName' => $defaults['call_manager_group'] ?? 'Default',
+            'routeListEnabled' => 'f',
+            'voiceMailUsage' => 'f',
+        ], $huntList);
+
+        $result = $this->client->addHuntList([
+            'huntList' => $payload,
+        ]);
+
+        return $result->return;
+    }
+
+    public function updateHuntList(string $identifier, array $huntList): mixed
+    {
+        $payload = array_merge($this->resolveNameOrUuidPayload($identifier), $huntList);
+
+        $result = $this->client->updateHuntList($payload);
+
+        return $result->return;
+    }
+
+    public function addHuntListMember(string $huntListIdentifier, string $lineGroupName, int $selectionOrder = 1): mixed
+    {
+        return $this->updateHuntList($huntListIdentifier, [
+            'addMembers' => [
+                'member' => [
+                    [
+                        'lineGroupName' => $lineGroupName,
+                        'selectionOrder' => $selectionOrder,
+                    ],
+                ],
+            ],
+        ]);
+    }
+
+    public function removeHuntListMember(string $huntListIdentifier, string $lineGroupName): mixed
+    {
+        return $this->updateHuntList($huntListIdentifier, [
+            'removeMembers' => [
+                'member' => [
+                    [
+                        'lineGroupName' => $lineGroupName,
+                    ],
+                ],
+            ],
+        ]);
+    }
+
+    public function removeHuntList(string $identifier): mixed
+    {
+        $result = $this->client->removeHuntList($this->resolveNameOrUuidPayload($identifier));
+
+        return $result->return;
+    }
+
+    public function listLineGroups(): array
+    {
+        $payload = [
+            'searchCriteria' => [
+                'name' => '%',
+            ],
+            'returnedTags' => [
+                'name' => '',
+                'uuid' => '',
+                'distributionAlgorithm' => '',
+                'rnaReversionTimeOut' => '',
+                'autoLogOffHunt' => '',
+            ],
+        ];
+
+        $result = $this->client->listLineGroup($payload);
+
+        return $this->normalizeListResponse($result, 'lineGroup', function ($lineGroup) {
+            return [
+                'name' => $lineGroup->name ?? '',
+                'uuid' => AxlValueFormatter::normalizeUuid($lineGroup->uuid ?? ''),
+                'distribution_algorithm' => AxlValueFormatter::stringify($lineGroup->distributionAlgorithm ?? ''),
+                'rna_reversion_timeout' => (int) ($lineGroup->rnaReversionTimeOut ?? 0),
+                'auto_log_off_hunt' => filter_var($lineGroup->autoLogOffHunt ?? false, FILTER_VALIDATE_BOOLEAN),
+            ];
+        });
+    }
+
+    public function getLineGroup(string $identifier): object
+    {
+        $payload = array_merge($this->resolveNameOrUuidPayload($identifier), [
+            'returnedTags' => [
+                'name' => '',
+                'uuid' => '',
+                'distributionAlgorithm' => '',
+                'rnaReversionTimeOut' => '',
+                'autoLogOffHunt' => '',
+                'huntAlgorithmNoAnswer' => '',
+                'huntAlgorithmBusy' => '',
+                'huntAlgorithmNotAvailable' => '',
+                'members' => [
+                    'member' => [
+                        'lineSelectionOrder' => '',
+                        'directoryNumber' => [
+                            'pattern' => '',
+                            'routePartitionName' => '',
+                        ],
+                        'uuid' => '',
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = $this->client->getLineGroup($payload);
+
+        return $result->return->lineGroup;
+    }
+
+    public function getLineGroupMembers(string $identifier): array
+    {
+        $lineGroup = $this->getLineGroup($identifier);
+
+        return $this->extractLineGroupMembers($lineGroup);
+    }
+
+    public function addLineGroup(array $lineGroup): mixed
+    {
+        $defaults = config('cisco-phone-services-laravel.axl.defaults.line_group', []);
+
+        $payload = array_merge([
+            'distributionAlgorithm' => $defaults['distribution_algorithm'] ?? 'Longest Idle Time',
+            'rnaReversionTimeOut' => $defaults['rna_reversion_timeout'] ?? 10,
+            'huntAlgorithmNoAnswer' => 'Try next member; then, try next group in Hunt List',
+            'huntAlgorithmBusy' => 'Try next member; then, try next group in Hunt List',
+            'huntAlgorithmNotAvailable' => 'Try next member; then, try next group in Hunt List',
+            'autoLogOffHunt' => 'f',
+        ], $lineGroup);
+
+        $result = $this->client->addLineGroup([
+            'lineGroup' => $payload,
+        ]);
+
+        return $result->return;
+    }
+
+    public function updateLineGroup(string $identifier, array $lineGroup): mixed
+    {
+        $payload = array_merge($this->resolveNameOrUuidPayload($identifier), $lineGroup);
+
+        $result = $this->client->updateLineGroup($payload);
+
+        return $result->return;
+    }
+
+    public function addLineGroupMember(string $lineGroupIdentifier, string $pattern, ?string $routePartition = null, int $lineSelectionOrder = 1): mixed
+    {
+        return $this->updateLineGroup($lineGroupIdentifier, [
+            'addMembers' => [
+                'member' => [
+                    [
+                        'lineSelectionOrder' => $lineSelectionOrder,
+                        'directoryNumber' => [
+                            'pattern' => $pattern,
+                            'routePartitionName' => $routePartition ?? $this->partitionName(),
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+    }
+
+    public function removeLineGroupMember(string $lineGroupIdentifier, string $pattern, ?string $routePartition = null): mixed
+    {
+        return $this->updateLineGroup($lineGroupIdentifier, [
+            'removeMembers' => [
+                'member' => [
+                    [
+                        'directoryNumber' => [
+                            'pattern' => $pattern,
+                            'routePartitionName' => $routePartition ?? $this->partitionName(),
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+    }
+
+    public function removeLineGroup(string $identifier): mixed
+    {
+        $result = $this->client->removeLineGroup($this->resolveNameOrUuidPayload($identifier));
 
         return $result->return;
     }
@@ -706,6 +1079,108 @@ class AxlService implements AxlServiceInterface
         }
 
         usort($result, fn (array $a, array $b): int => $a['index'] <=> $b['index']);
+
+        return $result;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function resolveHuntPilotIdentifierPayload(string $identifier): array
+    {
+        if (AxlValueFormatter::isUuid($identifier)) {
+            return [
+                'uuid' => AxlValueFormatter::formatUuidForAxl($identifier),
+            ];
+        }
+
+        return [
+            'pattern' => $identifier,
+            'routePartitionName' => $this->partitionName(),
+        ];
+    }
+
+    /**
+     * @return array<int, array{line_group_name: string, selection_order: int, uuid: string}>
+     */
+    private function extractHuntListMembers(mixed $huntList): array
+    {
+        $membersContainer = $huntList->members ?? null;
+
+        if ($membersContainer === null) {
+            return [];
+        }
+
+        $memberItems = $membersContainer->member ?? null;
+
+        if ($memberItems === null) {
+            return [];
+        }
+
+        $members = is_array($memberItems) ? $memberItems : [$memberItems];
+        $result = [];
+
+        foreach ($members as $member) {
+            $lineGroupName = AxlValueFormatter::stringify($member->lineGroupName ?? '');
+
+            if ($lineGroupName === '') {
+                continue;
+            }
+
+            $result[] = [
+                'line_group_name' => $lineGroupName,
+                'selection_order' => (int) ($member->selectionOrder ?? 0),
+                'uuid' => AxlValueFormatter::normalizeUuid($member->uuid ?? ''),
+            ];
+        }
+
+        usort($result, fn (array $a, array $b): int => $a['selection_order'] <=> $b['selection_order']);
+
+        return $result;
+    }
+
+    /**
+     * @return array<int, array{pattern: string, route_partition: string, line_selection_order: int, uuid: string}>
+     */
+    private function extractLineGroupMembers(mixed $lineGroup): array
+    {
+        $membersContainer = $lineGroup->members ?? null;
+
+        if ($membersContainer === null) {
+            return [];
+        }
+
+        $memberItems = $membersContainer->member ?? null;
+
+        if ($memberItems === null) {
+            return [];
+        }
+
+        $members = is_array($memberItems) ? $memberItems : [$memberItems];
+        $result = [];
+
+        foreach ($members as $member) {
+            $directoryNumber = $member->directoryNumber ?? null;
+
+            if ($directoryNumber === null) {
+                continue;
+            }
+
+            $pattern = AxlValueFormatter::stringify($directoryNumber->pattern ?? '');
+
+            if ($pattern === '') {
+                continue;
+            }
+
+            $result[] = [
+                'pattern' => $pattern,
+                'route_partition' => AxlValueFormatter::stringify($directoryNumber->routePartitionName ?? ''),
+                'line_selection_order' => (int) ($member->lineSelectionOrder ?? 0),
+                'uuid' => AxlValueFormatter::normalizeUuid($member->uuid ?? ''),
+            ];
+        }
+
+        usort($result, fn (array $a, array $b): int => $a['line_selection_order'] <=> $b['line_selection_order']);
 
         return $result;
     }
