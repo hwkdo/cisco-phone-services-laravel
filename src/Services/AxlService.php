@@ -280,6 +280,7 @@ class AxlService implements AxlServiceInterface
                 'product' => '',
                 'protocol' => '',
                 'devicePoolName' => '',
+                'ownerUserName' => '',
             ],
         ];
 
@@ -297,6 +298,7 @@ class AxlService implements AxlServiceInterface
                 'product' => AxlValueFormatter::stringify($phone->product ?? ''),
                 'protocol' => AxlValueFormatter::stringify($phone->protocol ?? ''),
                 'device_pool' => AxlValueFormatter::stringify($phone->devicePoolName ?? ''),
+                'owner_user_name' => AxlValueFormatter::stringify($phone->ownerUserName ?? ''),
                 'lines' => $linesByDevice[$name] ?? [],
             ];
         });
